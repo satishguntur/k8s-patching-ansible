@@ -1,0 +1,65 @@
+---
+- hosts: masters
+  become: yes
+  serial: 1
+  tasks:
+    - name: Drain master node
+      shell: "kubectl drain {{ inventory_hostname }} --ignore-daemonsets "
+      ignore_errors: yes
+
+    - name: Update and reboot master node
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Reboot master node
+      reboot:
+        msg: "Reboot initiated by Ansible for patching"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: whoami
+
+    - name: Wait for master node to come back online
+      wait_for:
+        port: 22
+        host: "{{ inventory_hostname }}"
+        state: started
+        delay: 0
+        timeout: 300
+
+    - name: Uncordon master node
+      shell: "kubectl uncordon {{ inventory_hostname }}"
+
+- hosts: workers
+  become: yes
+  serial: 1
+  tasks:
+    - name: Drain worker node
+      shell: "kubectl drain {{ inventory_hostname }} --ignore-daemonsets "
+      ignore_errors: yes
+
+    - name: Update and reboot worker node
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Reboot worker node
+      reboot:
+        msg: "Reboot initiated by Ansible for patching"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: whoami
+
+    - name: Wait for worker node to come back online
+      wait_for:
+        port: 22
+        host: "{{ inventory_hostname }}"
+        delay: 1
+        timeout: 300
+
+    - name: Uncordon worker node
+      shell: "kubectl uncordon {{ inventory_hostname }}"
